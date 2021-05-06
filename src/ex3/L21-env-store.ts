@@ -1,4 +1,4 @@
-import { add, map, zipWith } from "ramda";
+import { add, map, zipWith, lastIndexOf, append } from "ramda";
 import { Value } from './L21-value-store';
 import { Result, makeFailure, makeOk, bind, either, isOk } from "../shared/result";
 
@@ -22,16 +22,24 @@ export const makeEmptyStore = (): Store => ({ tag: "Store", vals: [] });
 export const theStore: Store = makeEmptyStore();
 // export const makeStore = (x: Value): Store => ({ tag: "Store", vals: [makeBox(x)] });
 export const extendStore = (s: Store, val: Value): Store => {
-    s.vals = [makeBox(val)].concat(s.vals);
+    s.vals = append(makeBox(val), (s.vals));
     return s;
 }
 
-export const applyStore = (store: Store, address: number): Result<Value> =>
-    (address > 0 && address < store.vals.length) ? makeOk(unbox(store.vals[address])) : makeFailure("illegal address");
+export const applyStore = (store: Store, address: number): Result<Value> => {
+    return (address >= 0 && address < store.vals.length) ? makeOk(unbox(store.vals[address])) : makeFailure("illegal address");
+}
 
 
 export const setStore = (store: Store, address: number, val: Value): void => {
-    if (isOk(applyStore(store, address))) store.vals[address] = makeBox(val)
+    console.log(unbox(store.vals[address]));
+    if (isOk(applyStore(store, address))) store.vals[address] = makeBox(val);
+    console.log(unbox(store.vals[address]));
+
+}
+
+export const getAddress = (s: Store, val: Value): number => {
+    return lastIndexOf(makeBox(val), theStore.vals);
 }
 
 // ========================================================
@@ -63,7 +71,7 @@ export const theGlobalEnv = makeGlobalEnv();
 export const makeExtEnv = (vs: string[], addresses: number[], env: Env): ExtEnv =>
     ({ tag: "ExtEnv", vars: vs, addresses: addresses, nextEnv: env });
 
-const isExtEnv = (x: any): x is ExtEnv => x.tag === "ExtEnv";
+export const isExtEnv = (x: any): x is ExtEnv => x.tag === "ExtEnv";
 
 export const isEnv = (x: any): x is Env => isGlobalEnv(x) || isExtEnv(x);
 
@@ -73,17 +81,20 @@ export const applyEnv = (env: Env, v: string): Result<number> =>
         applyExtEnv(env, v);
 
 const applyGlobalEnv = (env: GlobalEnv, v: string): Result<number> => {
+    console.log("in Glob");
     const vars = map(unbox, theGlobalEnv.vars);
-    const pos = vars.indexOf(v);
+    const pos = vars.lastIndexOf(v);
     return (pos > -1) ? makeOk(unbox(theGlobalEnv.addresses[pos])) : makeFailure("var not found");
 }
 
 export const globalEnvAddBinding = (v: string, addr: number): void => {
     const ge = theGlobalEnv;
-    ge.vars = [makeBox(v)].concat(ge.vars);
-    ge.addresses = [makeBox(addr)].concat(ge.addresses);
+    ge.vars = append(makeBox(v), ge.vars);
+    ge.addresses = append(makeBox(addr), ge.addresses);
 }
 
-const applyExtEnv = (env: ExtEnv, v: string): Result<number> =>
-    env.vars.includes(v) ? makeOk(env.addresses[env.vars.indexOf(v)]) :
+const applyExtEnv = (env: ExtEnv, v: string): Result<number> => {
+    console.log("in Ext");
+    return env.vars.includes(v) ? makeOk(env.addresses[env.vars.lastIndexOf(v)]) :
         applyEnv(env.nextEnv, v);
+}
